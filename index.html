@@ -934,7 +934,7 @@ function renderCopilot(p){
     </div>
     <div class="input-bar">
       <div class="input-row">
-        <textarea class="msg-textarea" id="msg-input" placeholder="Paste her message or tap 🎤"></textarea>
+        <textarea class="msg-textarea" id="msg-input" placeholder="Paste her message — or tell me what's happening..."></textarea>
         <button class="mic-btn" id="mic-msg">🎤</button>
       </div>
       <button class="btn-submit" id="btn-analyse">Analyse + Get Replies</button>
@@ -1152,68 +1152,160 @@ async function doAnalyse(){
   out.innerHTML=`<div class="loading"><div class="dots"><span>.</span><span>.</span><span>.</span></div>&nbsp;Reading...</div>`;
 
   const stageInfo=STAGES.find(s=>s.code===(p.stage||'A1'));
+  // Recent prospect message history for context
   const hist=(p.history||[]).slice(-10).map(h=>`[${h.dir==='in'?'HER':'YOU'}]: ${h.text}`).join('\n');
+  // Full co-pilot conversation memory — persisted across sessions
+  const copilotMemory = (p.copilotMemory||[]);
 
-  const sys=`You are The Filter — a grounded, honest co-pilot for Kwasi, a man dating with serious intent (marriage, family). He is INTJ, expresses love through acts of service, targets ESFJ-type partners.
-Blind spots: fixer tendency, making exceptions to rules, measuring against ex Tia, cold exit impulse.
+  const sys=`You are The Filter — a grounded, honest co-pilot for Kwasi. He is dating with serious intent: marriage and family within 5 years. INTJ. Expresses love through acts of service. Emotionally guarded but deeply loyal. Targets ESFJ-type partners.
+
+His blind spots: fixer tendency (stays too long with volatile or dishonest women), makes exceptions to his own rules, measures new women against ex Tia, cold exit impulse when uncomfortable.
+
 Prospect: ${p.name}, ${p.platform}, Age ${p.age}
 Stage: ${stageInfo?.code} — ${stageInfo?.label}
 Score so far: ${calcScore(p)}/100
+Exchange count: ${(p.history||[]).length}
 Flagged disqualifiers: ${(p.flaggedDQs||[]).join(', ')||'None'}
-Recent history:\n${hist||'None yet.'}
+Known patterns this prospect: ${p.knownPatterns||'None yet'}
+Recent history:
+${hist||'None yet.'}
 
-Analyse her message. Give a situational read. Suggest 3 replies in Kwasi's voice: dry, grounded, never performative. Tone should match stage — measured at A1/A2, progressively warmer at C2/C3. Explain the strategy behind each reply.
+FIRST — work out what mode Kwasi is in:
 
-Respond ONLY in this JSON format, no extra text:
+MODE A — CONTEXT: He is talking TO you. Giving you information, describing what happened, asking for your read. He is NOT pasting her message. Examples: "I met her", "we went on a date", "she said x", "I think she likes me", "not sure what to do", "should I move to the next stage".
+→ Do NOT suggest replies. Give your honest read. Ask 1-2 follow-up questions to build your picture. Update scores silently. Only flag patterns you have seen MORE THAN ONCE — first time file it silently, second time flag it.
+
+MODE B — HER MESSAGE: He is pasting something she actually sent him and wants reply options.
+→ Give a brief read. Suggest 3 replies in his voice. Be specific about the stage-appropriate strategy.
+
+MODE C — UNCLEAR: You genuinely cannot tell.
+→ Ask one question: "Is this her message or are you giving me context?"
+
+REPLY VOICE RULES — critical:
+- Dry and plain. Short sentences. Never clever for the sake of it.
+- Never smooth, never try-hard, never performative warmth.
+- A1/A2: measured, slightly detached, makes her work.
+- C1/C2: warmer but still grounded, never gushing.
+- C3: open and direct.
+- Good example: "You went quiet — everything good?" Bad example: "I noticed some inconsistency in your communication patterns recently."
+- Good example: "Depends who's asking." Bad example: "That's an interesting question, I'd say I'm somewhere in between."
+
+STRATEGIC NEXT MOVE — only include when something genuinely needs addressing:
+- Conversation going on too long without moving to date/number
+- Pattern forming that needs a probe
+- Momentum stalling
+- She's earned a stage move
+
+PATTERN FLAGS — only trigger after seeing same behaviour TWICE. First occurrence: file silently in knownPatterns. Second occurrence: flag it with a specific low-key probe suggestion in Kwasi's voice.
+
+Always update scores silently from context. Never ask him to score manually.
+
+Respond ONLY in valid JSON, no extra text:
 {
-  "read": "honest 2-3 sentence situational read",
-  "strategy": "1-2 sentence stage-appropriate approach",
-  "stageRecommend": null or {"stage":"C1","message":"Ready to move to C1 — she's earned it"},
-  "flagPattern": null or "Pattern + suggested probe",
-  "blindSpotAlert": null or "blind spot note",
-  "stallingAlert": null or "exit strategy if stalling",
-  "verdictReady": null or "verdict summary",
-  "checkin": null or {"question":"casual question","options":["opt1","opt2","opt3"]},
+  "mode": "context" or "her_message" or "unclear",
+  "read": "honest 2-3 sentence read, plain language",
+  "followUpQuestions": null or ["q1", "q2"],
+  "strategicMove": null or "one sentence — what needs to happen next and why",
+  "stageRecommend": null or {"stage":"C1","message":"plain reason"},
+  "flagPattern": null or "what the pattern is + one dry probe suggestion in his voice",
+  "blindSpotAlert": null or "specific relevant blind spot, plain language",
+  "stallingAlert": null or "plain exit strategy",
+  "verdictReady": null or "straight verdict summary",
   "scoreUpdates": null or {"emotionalStability":7},
-  "replies": [
-    {"text":"reply","why":"why this works"},
-    {"text":"reply","why":"why this works"},
-    {"text":"reply","why":"why this works"}
+  "newPatterns": null or "comma separated patterns to file for monitoring",
+  "replies": null or [
+    {"text":"reply in his voice","why":"plain explanation of why"},
+    {"text":"reply in his voice","why":"plain explanation of why"},
+    {"text":"reply in his voice","why":"plain explanation of why"}
   ]
 }`;
 
   try {
-    const raw=await ai(sys,[{role:'user',content:`Her message: "${msg}"`}]);
+    const raw=await ai(sys,[...copilotMemory,{role:'user',content:msg}]);
     const result=JSON.parse(raw.replace(/```json|```/g,'').trim());
 
     if(!p.history) p.history=[];
     p.history.push({dir:'in',text:msg,ts:new Date().toLocaleString('en-GB',{day:'2-digit',month:'short',hour:'2-digit',minute:'2-digit'})});
 
+    // Save to co-pilot memory so context persists across sessions
+    if(!p.copilotMemory) p.copilotMemory=[];
+    p.copilotMemory.push({role:'user',content:msg});
+    p.copilotMemory.push({role:'assistant',content:raw});
+    // Keep last 20 exchanges to avoid token bloat
+    if(p.copilotMemory.length>40) p.copilotMemory=p.copilotMemory.slice(-40);
+
+    // Track score changes for display
+    const scoreChanges=[];
     if(result.scoreUpdates && p.scores){
-      Object.keys(result.scoreUpdates).forEach(k=>{ if(p.scores.hasOwnProperty(k)) p.scores[k]=result.scoreUpdates[k]; });
+      Object.keys(result.scoreUpdates).forEach(k=>{
+        if(p.scores.hasOwnProperty(k)){
+          const old=p.scores[k];
+          const nw=result.scoreUpdates[k];
+          if(nw!==old) scoreChanges.push({key:k,old,new:nw});
+          p.scores[k]=nw;
+        }
+      });
     }
+
+    // Store new patterns for monitoring
+    if(result.newPatterns){
+      p.knownPatterns = p.knownPatterns
+        ? p.knownPatterns + ', ' + result.newPatterns
+        : result.newPatterns;
+    }
+
     if(result.stageRecommend) p.stageRec=result.stageRecommend;
     if(result.flagPattern) p.pendingFlag=result.flagPattern;
     if(result.stallingAlert){ p.stallingExit=result.stallingAlert; p.stalling=true; }
     if(result.verdictReady) p.verdictRec=result.verdictReady;
-    if(result.checkin) p.pendingCheckin=result.checkin;
     save();
 
-    out.innerHTML=`
+    // Score change indicator
+    const scoreHtml = scoreChanges.length>0 ? `
+      <div style="margin-top:8px;padding-top:8px;border-top:1px solid var(--border);font-size:10px;font-family:var(--mono);color:var(--text-faint);">
+        ${scoreChanges.map(c=>{
+          const diff=c.new-c.old;
+          const col=diff>0?'var(--green)':'var(--red)';
+          const label=SCORE_FIELDS.find(f=>f.key===c.key)?.label||c.key;
+          return `<span style="margin-right:10px;color:${col}">${label} ${diff>0?'↑':'↓'}${Math.abs(diff)}</span>`;
+        }).join('')}
+      </div>` : '';
+
+    // Build output based on mode
+    let html=`
       <div class="card">
-        <div class="card-label">Situational Read</div>
+        <div class="card-label">${result.mode==='unclear' ? 'Clarification Needed' : result.mode==='context' ? 'My Read' : 'Situational Read'}</div>
         <div class="card-text">${result.read}</div>
-        ${result.strategy?`<div class="card-strategy">${result.strategy}</div>`:''}
-        ${result.blindSpotAlert?`<div style="margin-top:8px;font-size:12px;color:var(--red);">⚠ ${result.blindSpotAlert}</div>`:''}
+        ${result.blindSpotAlert?`<div style="margin-top:8px;font-size:12px;color:var(--red);line-height:1.5;">⚠ ${result.blindSpotAlert}</div>`:''}
+        ${scoreHtml}
       </div>
-      ${result.replies.map((r,i)=>`
+    `;
+
+    // Strategic next move — only when present
+    if(result.strategicMove){
+      html+=`<div style="background:rgba(201,168,76,0.06);border-left:2px solid var(--gold);padding:10px 12px;margin-bottom:10px;font-size:12px;color:var(--gold);line-height:1.5;">→ ${result.strategicMove}</div>`;
+    }
+
+    // Follow-up questions for context mode
+    if(result.followUpQuestions && result.followUpQuestions.length>0){
+      html+=`<div class="checkin-box">
+        <div class="checkin-q" style="color:var(--text-dim);font-size:12px;margin-bottom:10px;">To build a better picture:</div>
+        ${result.followUpQuestions.map((q,i)=>`<div style="font-size:13px;color:var(--gold);margin-bottom:8px;line-height:1.5;">${i+1}. ${q}</div>`).join('')}
+      </div>`;
+    }
+
+    // Reply suggestions for her_message mode
+    if(result.replies && result.replies.length>0){
+      html+=result.replies.map((r,i)=>`
         <div class="reply-card" data-reply="${encodeURIComponent(r.text)}">
           <div class="reply-num">OPTION ${i+1} <span>tap to use</span></div>
           <div class="reply-text">${r.text}</div>
           <div class="reply-why">${r.why}</div>
         </div>
-      `).join('')}
-    `;
+      `).join('');
+    }
+
+    out.innerHTML=html;
 
     document.querySelectorAll('.reply-card[data-reply]').forEach(el=>{
       el.addEventListener('click',()=>{
@@ -1268,6 +1360,11 @@ Respond ONLY in this JSON:
     if(result.flagPattern) p.pendingFlag=result.flagPattern;
     if(!p.debriefs) p.debriefs=[];
     p.debriefs.push({ts:new Date().toLocaleString('en-GB',{day:'2-digit',month:'short',year:'numeric',hour:'2-digit',minute:'2-digit'}),raw:text,summary:result.summary});
+    // Save debrief to co-pilot memory too
+    if(!p.copilotMemory) p.copilotMemory=[];
+    p.copilotMemory.push({role:'user',content:'DEBRIEF: '+text});
+    p.copilotMemory.push({role:'assistant',content:'Summary: '+result.summary});
+    if(p.copilotMemory.length>40) p.copilotMemory=p.copilotMemory.slice(-40);
     save();
 
     out.innerHTML=`
