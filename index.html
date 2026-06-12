@@ -187,6 +187,7 @@ html, body {
   display: flex;
   flex-direction: column;
   overflow: hidden;
+  position: relative;
 }
 
 /* SCROLLABLE CONTENT */
@@ -196,6 +197,8 @@ html, body {
   -webkit-overflow-scrolling: touch;
   padding: 16px 14px;
   min-height: 0;
+  /* Extra bottom padding so content doesn't hide behind input bar */
+  padding-bottom: 20px;
 }
 
 /* PINNED INPUT BAR */
@@ -203,10 +206,10 @@ html, body {
   flex-shrink: 0;
   background: var(--surface);
   border-top: 1px solid var(--border);
-  padding: 10px 14px;
+  padding: 8px 12px;
   display: flex;
   flex-direction: column;
-  gap: 8px;
+  gap: 6px;
 }
 
 .input-row {
@@ -224,7 +227,7 @@ html, body {
   font-size: 12px;
   padding: 10px;
   resize: none;
-  height: 62px;
+  height: 52px;
   outline: none;
   line-height: 1.5;
   -webkit-appearance: none;
@@ -234,8 +237,8 @@ html, body {
 
 .mic-btn {
   flex-shrink: 0;
-  width: 46px;
-  height: 62px;
+  width: 44px;
+  height: 52px;
   background: var(--gold);
   border: none;
   color: #000;
@@ -798,13 +801,30 @@ let recog=null, recogTarget=null;
 
 function setupMic(inputId, btnId){
   const SR = window.SpeechRecognition||window.webkitSpeechRecognition;
-  if(!SR) return;
   const btn=document.getElementById(btnId);
   const inp=document.getElementById(inputId);
   if(!btn||!inp) return;
-  btn.onclick=()=>{
+  
+  if(!SR){
+    btn.title='Voice not supported in this browser';
+    btn.style.opacity='0.4';
+    return;
+  }
+
+  btn.onclick=async ()=>{
+    // Stop if already listening
     if(recog && recogTarget===inputId){ recog.stop(); return; }
     if(recog) recog.stop();
+
+    // Request mic permission explicitly
+    try {
+      await navigator.mediaDevices.getUserMedia({audio:true});
+    } catch(e) {
+      btn.textContent='🚫';
+      setTimeout(()=>btn.textContent='🎤', 2000);
+      return;
+    }
+
     recog=new SR(); recog.continuous=true; recog.interimResults=true; recog.lang='en-GB';
     recogTarget=inputId;
     btn.classList.add('listening');
@@ -818,6 +838,7 @@ function setupMic(inputId, btnId){
       if(fin) base+=fin+' ';
       inp.value=base+int;
     };
+    recog.onerror=()=>{ btn.classList.remove('listening'); recog=null; recogTarget=null; };
     recog.onend=()=>{ btn.classList.remove('listening'); recog=null; recogTarget=null; };
     recog.start();
   };
@@ -1342,19 +1363,22 @@ Respond ONLY in valid JSON, no extra text:
 
     out.innerHTML=html;
 
+    // Clear input after analysis
+    inp.value='';
+
     document.querySelectorAll('.reply-card[data-reply]').forEach(el=>{
       el.addEventListener('click',()=>{
         const text=decodeURIComponent(el.dataset.reply);
         if(!p.history) p.history=[];
         p.history.push({dir:'out',text,ts:new Date().toLocaleString('en-GB',{day:'2-digit',month:'short',hour:'2-digit',minute:'2-digit'})});
-        save(); inp.value='';
+        save();
         el.style.borderColor='var(--gold)';
         setTimeout(()=>render(),600);
       });
     });
 
-    // Scroll to top of output
-    document.getElementById('copilot-scroll')?.scrollTo({top:0,behavior:'smooth'});
+    // Scroll output into view
+    out.scrollIntoView({behavior:'smooth', block:'start'});
 
   } catch(err){
     out.innerHTML=`<div class="card"><div class="card-text" style="color:var(--red)">Error: ${err.message}</div></div>`;
