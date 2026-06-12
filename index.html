@@ -1191,7 +1191,7 @@ function bindEvents(){
       if(inp){
         inp.placeholder = btn.dataset.mode==='her_message'
           ? 'Paste her message here...'
-          : 'Tell me what's going on...';
+          : 'Tell me what is going on...';
       }
     });
   });
@@ -1230,6 +1230,1236 @@ Flagged disqualifiers: ${(p.flaggedDQs||[]).join(', ')||'None'}
 Known patterns this prospect: ${p.knownPatterns||'None yet'}
 Recent history:
 ${hist||'None yet.'}
+
+<title>The Filter</title>
+<style>
+@import url('https://fonts.googleapis.com/css2?family=Space+Mono:ital,wght@0,400;0,700;1,400&family=Inter:wght@300;400;500;600&display=swap');
+
+:root {
+  --bg: #0a0a0a;
+  --surface: #111;
+  --surface2: #1a1a1a;
+  --surface3: #222;
+  --border: #2a2a2a;
+  --gold: #c9a84c;
+  --gold-dim: #8a6f2e;
+  --red: #c0392b;
+  --red-dim: #7a2020;
+  --green: #2ecc71;
+  --green-dim: #1a6b3a;
+  --text: #e8e8e8;
+  --text-dim: #888;
+  --text-faint: #444;
+  --mono: 'Space Mono', monospace;
+  --sans: 'Inter', sans-serif;
+}
+
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+html, body {
+  height: 100%;
+  width: 100%;
+  overflow: hidden;
+  background: var(--bg);
+  color: var(--text);
+  font-family: var(--sans);
+}
+
+/* ROOT LAYOUT */
+#app {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  width: 100%;
+  overflow: hidden;
+}
+
+/* TOP BAR */
+.topbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 10px 14px;
+  background: var(--surface);
+  border-bottom: 1px solid var(--border);
+  flex-shrink: 0;
+  gap: 10px;
+}
+
+.logo {
+  font-family: var(--mono);
+  font-size: 13px;
+  color: var(--gold);
+  letter-spacing: 0.12em;
+  white-space: nowrap;
+}
+
+.prospect-strip {
+  display: flex;
+  gap: 6px;
+  overflow-x: auto;
+  flex: 1;
+  padding: 2px 0;
+  -webkit-overflow-scrolling: touch;
+}
+
+.prospect-strip::-webkit-scrollbar { display: none; }
+
+.strip-item {
+  flex-shrink: 0;
+  padding: 6px 10px;
+  background: var(--surface2);
+  border: 1px solid var(--border);
+  cursor: pointer;
+  min-width: 90px;
+  text-align: center;
+}
+
+.strip-item.active { border-color: var(--gold-dim); background: var(--surface3); }
+
+.strip-name {
+  font-family: var(--mono);
+  font-size: 11px;
+  color: var(--text);
+  display: block;
+  margin-bottom: 3px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  max-width: 80px;
+}
+
+.strip-tag {
+  font-family: var(--mono);
+  font-size: 9px;
+  color: var(--text-dim);
+}
+
+.btn-new {
+  flex-shrink: 0;
+  background: var(--gold);
+  color: #000;
+  border: none;
+  padding: 7px 12px;
+  font-family: var(--mono);
+  font-size: 11px;
+  font-weight: 700;
+  cursor: pointer;
+  white-space: nowrap;
+}
+
+/* PROSPECT HEADER */
+.prospect-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 10px 14px;
+  background: var(--surface);
+  border-bottom: 1px solid var(--border);
+  flex-shrink: 0;
+}
+
+.prospect-name {
+  font-family: var(--mono);
+  font-size: 17px;
+  font-style: italic;
+  color: var(--text);
+}
+
+.prospect-meta {
+  font-size: 11px;
+  color: var(--text-dim);
+  margin-top: 2px;
+}
+
+.btn-remove {
+  background: none;
+  border: 1px solid var(--red-dim);
+  color: var(--red);
+  padding: 5px 10px;
+  font-family: var(--mono);
+  font-size: 9px;
+  cursor: pointer;
+  flex-shrink: 0;
+}
+
+/* TABS */
+.tabs {
+  display: flex;
+  background: var(--surface);
+  border-bottom: 1px solid var(--border);
+  flex-shrink: 0;
+}
+
+.tab {
+  flex: 1;
+  padding: 10px 6px;
+  background: none;
+  border: none;
+  border-bottom: 2px solid transparent;
+  color: var(--text-dim);
+  font-family: var(--mono);
+  font-size: 9px;
+  letter-spacing: 0.1em;
+  cursor: pointer;
+  text-transform: uppercase;
+  text-align: center;
+}
+
+.tab.active { color: var(--gold); border-bottom-color: var(--gold); }
+
+/* MAIN BODY — fills remaining height */
+.main-body {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  position: relative;
+}
+
+/* SCROLLABLE CONTENT */
+.scroll-area {
+  flex: 1;
+  overflow-y: auto;
+  -webkit-overflow-scrolling: touch;
+  padding: 16px 14px;
+  min-height: 0;
+  /* Extra bottom padding so content doesn't hide behind input bar */
+  padding-bottom: 20px;
+}
+
+/* PINNED INPUT BAR */
+.input-bar {
+  flex-shrink: 0;
+  background: var(--surface);
+  border-top: 1px solid var(--border);
+  padding: 8px 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.input-row {
+  display: flex;
+  gap: 8px;
+  align-items: flex-end;
+}
+
+.msg-textarea {
+  flex: 1;
+  background: var(--surface2);
+  border: 1px solid var(--border);
+  color: var(--text);
+  font-family: var(--mono);
+  font-size: 12px;
+  padding: 10px;
+  resize: none;
+  height: 52px;
+  outline: none;
+  line-height: 1.5;
+  -webkit-appearance: none;
+}
+
+.msg-textarea:focus { border-color: var(--gold-dim); }
+
+.mic-btn {
+  flex-shrink: 0;
+  width: 44px;
+  height: 52px;
+  background: var(--gold);
+  border: none;
+  color: #000;
+  font-size: 20px;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.mic-btn.listening { background: var(--red); color: #fff; animation: pulse 1s infinite; }
+
+.btn-submit {
+  width: 100%;
+  padding: 11px;
+  background: var(--gold);
+  color: #000;
+  border: none;
+  font-family: var(--mono);
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.1em;
+  cursor: pointer;
+  text-transform: uppercase;
+}
+
+.btn-submit:disabled { background: var(--surface3); color: var(--text-faint); cursor: not-allowed; }
+
+/* EMPTY STATE */
+.empty {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  height: 100%;
+  color: var(--text-faint);
+  font-family: var(--mono);
+  font-size: 11px;
+  gap: 10px;
+  text-align: center;
+  padding: 40px 20px;
+}
+
+.empty-icon { font-size: 40px; opacity: 0.2; }
+.empty-title { font-size: 14px; color: var(--text-dim); }
+
+/* CARDS */
+.card {
+  background: var(--surface2);
+  border: 1px solid var(--border);
+  padding: 13px;
+  margin-bottom: 10px;
+}
+
+.card-label {
+  font-family: var(--mono);
+  font-size: 9px;
+  color: var(--gold);
+  letter-spacing: 0.15em;
+  text-transform: uppercase;
+  margin-bottom: 8px;
+}
+
+.card-text {
+  font-size: 12px;
+  color: var(--text-dim);
+  line-height: 1.7;
+}
+
+.card-strategy {
+  font-size: 12px;
+  color: var(--gold);
+  font-style: italic;
+  line-height: 1.6;
+  margin-top: 8px;
+  padding-top: 8px;
+  border-top: 1px solid var(--border);
+}
+
+/* REPLY CARDS */
+.reply-card {
+  background: var(--surface2);
+  border: 1px solid var(--border);
+  padding: 13px;
+  margin-bottom: 8px;
+  cursor: pointer;
+}
+
+.reply-card:active { border-color: var(--gold); }
+
+.reply-num {
+  font-family: var(--mono);
+  font-size: 9px;
+  color: var(--text-faint);
+  letter-spacing: 0.1em;
+  margin-bottom: 6px;
+  display: flex;
+  justify-content: space-between;
+}
+
+.reply-num span { color: var(--gold); }
+
+.reply-text {
+  font-size: 13px;
+  color: var(--text);
+  line-height: 1.6;
+  margin-bottom: 8px;
+}
+
+.reply-why {
+  font-size: 11px;
+  color: var(--text-dim);
+  font-style: italic;
+  line-height: 1.5;
+  padding-top: 8px;
+  border-top: 1px solid var(--border);
+}
+
+/* FLAG */
+.flag-box {
+  background: rgba(192,57,43,0.1);
+  border: 1px solid var(--red-dim);
+  padding: 12px 13px;
+  margin-bottom: 10px;
+}
+
+.flag-title {
+  font-family: var(--mono);
+  font-size: 9px;
+  color: var(--red);
+  letter-spacing: 0.12em;
+  margin-bottom: 6px;
+}
+
+.flag-text { font-size: 12px; color: var(--red); line-height: 1.6; }
+
+/* STAGE RECOMMEND */
+.stage-rec {
+  background: rgba(201,168,76,0.08);
+  border-left: 2px solid var(--gold);
+  padding: 10px 12px;
+  margin-bottom: 10px;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 8px;
+}
+
+.stage-rec-text { font-size: 12px; color: var(--gold); line-height: 1.5; }
+
+.btn-confirm {
+  flex-shrink: 0;
+  background: var(--gold);
+  color: #000;
+  border: none;
+  padding: 5px 10px;
+  font-family: var(--mono);
+  font-size: 9px;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+/* CHECKIN */
+.checkin-box {
+  background: rgba(201,168,76,0.06);
+  border: 1px solid var(--gold-dim);
+  padding: 13px;
+  margin-bottom: 10px;
+}
+
+.checkin-q {
+  font-size: 13px;
+  color: var(--gold);
+  margin-bottom: 10px;
+  line-height: 1.5;
+}
+
+.checkin-opts { display: flex; flex-wrap: wrap; gap: 6px; }
+
+.btn-opt {
+  padding: 6px 12px;
+  background: var(--surface3);
+  border: 1px solid var(--border);
+  color: var(--text-dim);
+  font-family: var(--mono);
+  font-size: 10px;
+  cursor: pointer;
+}
+
+/* VERDICT SUMMARY */
+.verdict-box {
+  background: var(--surface2);
+  border-left: 3px solid var(--gold);
+  padding: 13px;
+  margin-bottom: 10px;
+}
+
+.verdict-box-label {
+  font-family: var(--mono);
+  font-size: 9px;
+  color: var(--gold);
+  letter-spacing: 0.15em;
+  margin-bottom: 6px;
+}
+
+.verdict-box-text { font-size: 12px; color: var(--text-dim); line-height: 1.7; }
+
+/* HISTORY */
+.history-item {
+  background: var(--surface2);
+  border: 1px solid var(--border);
+  padding: 10px 12px;
+  margin-bottom: 6px;
+  font-size: 11px;
+  color: var(--text-dim);
+  line-height: 1.5;
+}
+
+.history-who { font-family: var(--mono); font-size: 9px; color: var(--text-faint); margin-bottom: 3px; }
+
+/* PROFILE TAB */
+.section { margin-bottom: 22px; }
+
+.section-label {
+  font-family: var(--mono);
+  font-size: 9px;
+  color: var(--gold);
+  letter-spacing: 0.15em;
+  text-transform: uppercase;
+  margin-bottom: 10px;
+}
+
+.verdict-btns { display: flex; gap: 6px; }
+
+.verdict-btn {
+  flex: 1;
+  padding: 10px 4px;
+  background: var(--surface2);
+  border: 1px solid var(--border);
+  color: var(--text-dim);
+  font-family: var(--mono);
+  font-size: 9px;
+  letter-spacing: 0.08em;
+  cursor: pointer;
+  text-align: center;
+}
+
+.verdict-btn.vb-proceed { background: var(--green-dim); border-color: var(--green); color: var(--green); }
+.verdict-btn.vb-pending { background: var(--surface3); border-color: var(--gold); color: var(--gold); }
+.verdict-btn.vb-walkaway { background: var(--red-dim); border-color: var(--red); color: var(--red); }
+
+.stage-list { display: flex; flex-direction: column; gap: 4px; }
+
+.stage-item {
+  padding: 9px 12px;
+  background: var(--surface2);
+  border: 1px solid transparent;
+  font-family: var(--mono);
+  font-size: 11px;
+  color: var(--text-faint);
+  cursor: pointer;
+  display: flex;
+  gap: 10px;
+  align-items: center;
+}
+
+.stage-item.s-active { background: var(--surface3); border-color: var(--gold-dim); color: var(--gold); }
+.stage-item.s-done { color: var(--text-dim); }
+.stage-code { font-size: 10px; color: var(--text-faint); }
+.stage-item.s-active .stage-code { color: var(--gold-dim); }
+
+.score-display {
+  text-align: center;
+  padding: 14px;
+  background: var(--surface2);
+  border: 1px solid var(--border);
+  margin-bottom: 14px;
+}
+
+.score-number { font-family: var(--mono); font-size: 38px; color: var(--gold); line-height: 1; }
+.score-bar { height: 2px; background: var(--surface3); margin: 8px auto; max-width: 100px; }
+.score-bar-fill { height: 100%; background: var(--red); transition: width 0.4s; }
+.score-sublabel { font-family: var(--mono); font-size: 9px; color: var(--text-dim); letter-spacing: 0.1em; }
+
+.score-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 10px;
+}
+
+.score-row-info { flex: 1; }
+.score-row-label { font-size: 12px; color: var(--text-dim); }
+.score-row-weight { font-size: 10px; color: var(--text-faint); }
+
+.score-slider {
+  width: 70px;
+  -webkit-appearance: none;
+  height: 2px;
+  background: var(--surface3);
+  outline: none;
+  flex-shrink: 0;
+}
+
+.score-slider::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  width: 14px;
+  height: 14px;
+  background: var(--gold);
+  cursor: pointer;
+  border-radius: 0;
+}
+
+.score-val {
+  font-family: var(--mono);
+  font-size: 12px;
+  width: 20px;
+  text-align: right;
+  color: var(--text);
+  flex-shrink: 0;
+}
+
+.dq-item {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 9px 12px;
+  background: var(--surface2);
+  border: 1px solid var(--border);
+  margin-bottom: 4px;
+  cursor: pointer;
+  font-family: var(--mono);
+  font-size: 11px;
+  color: var(--text-dim);
+}
+
+.dq-item.dq-on { background: var(--red-dim); border-color: var(--red); color: var(--red); }
+.dq-dot { width: 8px; height: 8px; border-radius: 50%; border: 1px solid var(--text-faint); flex-shrink: 0; }
+.dq-item.dq-on .dq-dot { background: var(--red); border-color: var(--red); }
+
+.bs-item {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 9px 12px;
+  background: var(--surface2);
+  border: 1px solid var(--border);
+  margin-bottom: 4px;
+  cursor: pointer;
+  font-family: var(--mono);
+  font-size: 11px;
+  color: var(--text-dim);
+}
+
+.bs-item.bs-on { background: rgba(201,168,76,0.08); border-color: var(--gold-dim); color: var(--gold); }
+.bs-dot { width: 8px; height: 8px; border-radius: 50%; border: 1px solid var(--text-faint); flex-shrink: 0; }
+.bs-item.bs-on .bs-dot { background: var(--gold); border-color: var(--gold); }
+
+.notes-area {
+  width: 100%;
+  background: var(--surface2);
+  border: 1px solid var(--border);
+  color: var(--text);
+  font-family: var(--mono);
+  font-size: 12px;
+  padding: 11px;
+  resize: vertical;
+  min-height: 90px;
+  outline: none;
+  line-height: 1.6;
+}
+
+.notes-area:focus { border-color: var(--gold-dim); }
+
+/* MODAL */
+.modal-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(0,0,0,0.88);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 999;
+  padding: 20px;
+}
+
+.modal {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  padding: 22px;
+  width: 100%;
+  max-width: 380px;
+}
+
+.modal-title {
+  font-family: var(--mono);
+  font-size: 12px;
+  color: var(--gold);
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  margin-bottom: 18px;
+}
+
+.field { margin-bottom: 12px; }
+
+.field-label {
+  display: block;
+  font-family: var(--mono);
+  font-size: 9px;
+  color: var(--text-dim);
+  letter-spacing: 0.1em;
+  margin-bottom: 5px;
+  text-transform: uppercase;
+}
+
+.field-input {
+  width: 100%;
+  background: var(--surface2);
+  border: 1px solid var(--border);
+  color: var(--text);
+  font-family: var(--mono);
+  font-size: 12px;
+  padding: 9px 11px;
+  outline: none;
+  -webkit-appearance: none;
+}
+
+.field-input:focus { border-color: var(--gold-dim); }
+
+.modal-btns { display: flex; gap: 8px; margin-top: 18px; }
+
+.btn-primary {
+  flex: 1;
+  padding: 10px;
+  background: var(--gold);
+  color: #000;
+  border: none;
+  font-family: var(--mono);
+  font-size: 11px;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.btn-secondary {
+  flex: 1;
+  padding: 10px;
+  background: none;
+  color: var(--text-dim);
+  border: 1px solid var(--border);
+  font-family: var(--mono);
+  font-size: 11px;
+  cursor: pointer;
+}
+
+.btn-dismiss {
+  margin-top: 8px;
+  padding: 5px 10px;
+  background: var(--surface3);
+  border: 1px solid var(--border);
+  color: var(--text-dim);
+  font-family: var(--mono);
+  font-size: 10px;
+  cursor: pointer;
+}
+
+/* LOADING */
+.loading {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 16px 0;
+  color: var(--text-dim);
+  font-family: var(--mono);
+  font-size: 11px;
+}
+
+.dots span { animation: blink 1.2s infinite; font-size: 20px; color: var(--gold); }
+.dots span:nth-child(2) { animation-delay: 0.2s; }
+.dots span:nth-child(3) { animation-delay: 0.4s; }
+
+@keyframes blink { 0%,80%,100%{opacity:0} 40%{opacity:1} }
+@keyframes pulse { 0%,100%{opacity:1} 50%{opacity:0.4} }
+
+.mode-btn {
+  flex: 1;
+  padding: 7px;
+  background: var(--surface3);
+  border: 1px solid var(--border);
+  color: var(--text-dim);
+  font-family: var(--mono);
+  font-size: 10px;
+  letter-spacing: 0.08em;
+  cursor: pointer;
+  text-transform: uppercase;
+}
+.mode-btn.active {
+  background: var(--gold);
+  border-color: var(--gold);
+  color: #000;
+  font-weight: 700;
+}
+</style>
+</head>
+<body>
+<div id="app"></div>
+
+<script>
+// ── DATA ──────────────────────────────────
+const STAGES = [
+  {code:'A1',label:'Initial Contact'},
+  {code:'A2',label:'Demonstrating Value'},
+  {code:'A3',label:'Qualifying Her'},
+  {code:'C1',label:'Early Rapport'},
+  {code:'C2',label:'Deeper Connection'},
+  {code:'C3',label:'Full Clarity'},
+];
+
+const SCORE_FIELDS = [
+  {key:'emotionalStability',   label:'Emotional Stability',   w:20},
+  {key:'loyaltyHonesty',       label:'Loyalty & Honesty',     w:20},
+  {key:'maternalWarmth',       label:'Maternal Warmth',       w:15},
+  {key:'valuesAlignment',      label:'Values Alignment',      w:15},
+  {key:'financialCharacter',   label:'Financial Character',   w:10},
+  {key:'communication',        label:'Communication',         w:10},
+  {key:'naturalPresentation',  label:'Natural Presentation',  w:5},
+  {key:'peacefulPresence',     label:'Peaceful Presence',     w:5},
+];
+
+const DISQUALIFIERS = [
+  'Has children already','Smokes','Excessive profanity',
+  'No accountability / always the victim','Emotional volatility',
+  'Financial irresponsibility','Early dishonesty / story changes',
+  'Flirting with others in your presence','Swore at you directly',
+  'Projecting unresolved trauma','Hidden agenda / managing you',
+  'Hot/cold inconsistency',
+];
+
+const BLIND_SPOTS = [
+  '⚠ Fixer pattern active',
+  '⚠ Making exception to own rules',
+  '⚠ Measuring against Tia',
+  '⚠ Cold exit impulse',
+];
+
+function emptyScores(){ const s={}; SCORE_FIELDS.forEach(f=>s[f.key]=0); return s; }
+function calcScore(p){
+  if(!p.scores) return 0;
+  let t=0; SCORE_FIELDS.forEach(f=>{ t+=(p.scores[f.key]||0)*(f.w/100); });
+  return Math.round(t*10);
+}
+
+function load(){ try{ return JSON.parse(localStorage.getItem('filter_v3')||'null'); }catch{return null;} }
+function save(){ localStorage.setItem('filter_v3', JSON.stringify(state)); }
+
+let state = load() || { prospects:[], activeId:null };
+function getP(){ return state.prospects.find(p=>p.id===state.activeId)||null; }
+
+// ── VOICE ─────────────────────────────────
+let recog=null, recogTarget=null;
+
+function setupMic(inputId, btnId){
+  const SR = window.SpeechRecognition||window.webkitSpeechRecognition;
+  const btn=document.getElementById(btnId);
+  const inp=document.getElementById(inputId);
+  if(!btn||!inp) return;
+  
+  if(!SR){
+    btn.title='Voice not supported in this browser';
+    btn.style.opacity='0.4';
+    return;
+  }
+
+  btn.onclick=async ()=>{
+    // Stop if already listening
+    if(recog && recogTarget===inputId){ recog.stop(); return; }
+    if(recog) recog.stop();
+
+    // Request mic permission explicitly
+    try {
+      await navigator.mediaDevices.getUserMedia({audio:true});
+    } catch(e) {
+      btn.textContent='🚫';
+      setTimeout(()=>btn.textContent='🎤', 2000);
+      return;
+    }
+
+    recog=new SR(); recog.continuous=true; recog.interimResults=true; recog.lang='en-GB';
+    recogTarget=inputId;
+    btn.classList.add('listening');
+    let base=inp.value;
+    recog.onresult=e=>{
+      let fin='',int='';
+      for(let i=e.resultIndex;i<e.results.length;i++){
+        if(e.results[i].isFinal) fin+=e.results[i][0].transcript;
+        else int+=e.results[i][0].transcript;
+      }
+      if(fin) base+=fin+' ';
+      inp.value=base+int;
+    };
+    recog.onerror=()=>{ btn.classList.remove('listening'); recog=null; recogTarget=null; };
+    recog.onend=()=>{ btn.classList.remove('listening'); recog=null; recogTarget=null; };
+    recog.start();
+  };
+}
+
+// ── API ───────────────────────────────────
+async function ai(system, messages){
+  const r=await fetch('/api/chat',{
+    method:'POST',
+    headers:{'Content-Type':'application/json'},
+    body:JSON.stringify({system,messages})
+  });
+  const d=await r.json();
+  if(d.error) throw new Error(d.error.message||'API error');
+  return d.content[0].text;
+}
+
+// ── RENDER ────────────────────────────────
+function render(){
+  const root=document.getElementById('app');
+  const p=getP();
+
+  let html=`
+    <div class="topbar">
+      <div class="logo">THE FILTER</div>
+      <div class="prospect-strip" id="pstrip">
+        ${state.prospects.map(pr=>`
+          <div class="strip-item ${pr.id===state.activeId?'active':''}" data-pid="${pr.id}">
+            <span class="strip-name">${pr.name}</span>
+            <span class="strip-tag">${pr.stage||'A1'} · ${calcScore(pr)||'—'}</span>
+          </div>
+        `).join('')}
+      </div>
+      <button class="btn-new" id="btn-new">+ NEW</button>
+    </div>
+  `;
+
+  if(!p){
+    html+=`
+      <div class="main-body">
+        <div class="empty">
+          <div class="empty-icon">◎</div>
+          <div class="empty-title">The Filter</div>
+          <div>Add a prospect to begin</div>
+          <div style="color:var(--gold);font-size:10px;margin-top:4px;">YOUR STANDARD DOESN'T LOWER</div>
+        </div>
+      </div>
+    `;
+  } else {
+    const tab=p._tab||'copilot';
+    html+=`
+      <div class="prospect-header">
+        <div>
+          <div class="prospect-name">${p.name}</div>
+          <div class="prospect-meta">${p.platform} · Age ${p.age}</div>
+        </div>
+        <button class="btn-remove" id="btn-remove">Remove</button>
+      </div>
+      <div class="tabs">
+        <button class="tab ${tab==='copilot'?'active':''}" data-tab="copilot">Co-Pilot</button>
+        <button class="tab ${tab==='profile'?'active':''}" data-tab="profile">Profile & Score</button>
+        <button class="tab ${tab==='debrief'?'active':''}" data-tab="debrief">Debrief</button>
+      </div>
+      <div class="main-body" id="main-body">
+        ${tab==='copilot' ? renderCopilot(p) : ''}
+        ${tab==='profile' ? renderProfile(p) : ''}
+        ${tab==='debrief' ? renderDebrief(p) : ''}
+      </div>
+    `;
+  }
+
+  root.innerHTML=html;
+  bindEvents();
+}
+
+function renderCopilot(p){
+  const history=p.history||[];
+  const flag=p.pendingFlag||null;
+  const stageRec=p.stageRec||null;
+  const stallingExit=p.stallingExit||null;
+  const verdictRec=p.verdictRec||null;
+  const checkin=p.pendingCheckin||null;
+
+  return `
+    <div class="scroll-area" id="copilot-scroll">
+      ${verdictRec?`
+        <div class="verdict-box">
+          <div class="verdict-box-label">Verdict Recommendation</div>
+          <div class="verdict-box-text">${verdictRec}</div>
+          <button class="btn-dismiss" id="dismiss-verdict">Dismiss</button>
+        </div>
+      `:''}
+      ${stallingExit?`
+        <div class="flag-box">
+          <div class="flag-title">MOMENTUM — EXIT STRATEGY</div>
+          <div class="flag-text">${stallingExit}</div>
+          <button class="btn-dismiss" id="dismiss-stalling">Dismiss</button>
+        </div>
+      `:''}
+      ${flag?`
+        <div class="flag-box">
+          <div class="flag-title">PATTERN DETECTED</div>
+          <div class="flag-text">${flag}</div>
+          <button class="btn-dismiss" id="dismiss-flag">Got it</button>
+        </div>
+      `:''}
+      ${stageRec?`
+        <div class="stage-rec">
+          <div class="stage-rec-text">${stageRec.message}</div>
+          <button class="btn-confirm" id="btn-confirm-stage" data-stage="${stageRec.stage}">Confirm</button>
+        </div>
+      `:''}
+      ${checkin?`
+        <div class="checkin-box">
+          <div class="checkin-q">${checkin.question}</div>
+          <div class="checkin-opts">
+            ${checkin.options.map((o,i)=>`<button class="btn-opt" data-ci="${i}">${o}</button>`).join('')}
+          </div>
+        </div>
+      `:''}
+      <div id="analysis-out"></div>
+      ${history.length>0?`
+        <div style="margin-top:12px;">
+          <div class="section-label">Recent exchanges</div>
+          ${history.slice(-3).reverse().map(h=>`
+            <div class="history-item">
+              <div class="history-who">${h.dir==='in'?'HER':'YOU'} · ${h.ts}</div>
+              ${h.text.substring(0,100)}${h.text.length>100?'…':''}
+            </div>
+          `).join('')}
+        </div>
+      `:''}
+    </div>
+    <div class="input-bar">
+      <div style="display:flex;gap:6px;margin-bottom:8px;">
+        <button class="mode-btn active" id="mode-context" data-mode="context">My Context</button>
+        <button class="mode-btn" id="mode-her" data-mode="her_message">Her Message</button>
+      </div>
+      <div class="input-row">
+        <textarea class="msg-textarea" id="msg-input" placeholder="Tell me what's going on..."></textarea>
+        <button class="mic-btn" id="mic-msg">🎤</button>
+      </div>
+      <button class="btn-submit" id="btn-analyse">Analyse</button>
+    </div>
+  `;
+}
+
+function renderProfile(p){
+  const score=calcScore(p);
+  const col=score>=70?'#2ecc71':score>=40?'#c9a84c':'#c0392b';
+  return `
+    <div class="scroll-area">
+      <div class="section">
+        <div class="section-label">Verdict</div>
+        <div class="verdict-btns">
+          <button class="verdict-btn ${p.verdict==='proceed'?'vb-proceed':''}" data-v="proceed">✓ Proceed</button>
+          <button class="verdict-btn ${(!p.verdict||p.verdict==='pending')?'vb-pending':''}" data-v="pending">◎ Pending</button>
+          <button class="verdict-btn ${p.verdict==='walkaway'?'vb-walkaway':''}" data-v="walkaway">✕ Walk Away</button>
+        </div>
+      </div>
+      <div class="section">
+        <div class="section-label">Conversation Stage</div>
+        <div class="stage-list">
+          ${STAGES.map(s=>{
+            const ai=STAGES.findIndex(x=>x.code===(p.stage||'A1'));
+            const si=STAGES.findIndex(x=>x.code===s.code);
+            return `<div class="stage-item ${s.code===(p.stage||'A1')?'s-active':si<ai?'s-done':''}" data-stage="${s.code}">
+              <span class="stage-code">${s.code}</span><span>${s.label}</span>
+            </div>`;
+          }).join('')}
+        </div>
+      </div>
+      <div class="section">
+        <div class="section-label">Blueprint Score</div>
+        <div class="score-display">
+          <div class="score-number">${score}</div>
+          <div class="score-bar"><div class="score-bar-fill" style="width:${score}%;background:${col}"></div></div>
+          <div class="score-sublabel">Compatibility / 100</div>
+        </div>
+        ${SCORE_FIELDS.map(f=>`
+          <div class="score-row">
+            <div class="score-row-info">
+              <div class="score-row-label">${f.label}</div>
+              <div class="score-row-weight">×${f.w}%</div>
+            </div>
+            <input type="range" class="score-slider" min="0" max="10" value="${p.scores?.[f.key]||0}" data-sk="${f.key}">
+            <div class="score-val" id="sv-${f.key}">${p.scores?.[f.key]||0}</div>
+          </div>
+        `).join('')}
+      </div>
+      <div class="section">
+        <div class="section-label">Hard Disqualifiers — Tap to Flag</div>
+        ${DISQUALIFIERS.map(dq=>`
+          <div class="dq-item ${(p.flaggedDQs||[]).includes(dq)?'dq-on':''}" data-dq="${dq}">
+            <div class="dq-dot"></div>${dq}
+          </div>
+        `).join('')}
+      </div>
+      <div class="section">
+        <div class="section-label">Blind Spot Check</div>
+        ${BLIND_SPOTS.map(bs=>`
+          <div class="bs-item ${(p.activeBS||[]).includes(bs)?'bs-on':''}" data-bs="${bs}">
+            <div class="bs-dot"></div>${bs}
+          </div>
+        `).join('')}
+      </div>
+      <div class="section">
+        <div class="section-label">Notes</div>
+        <textarea class="notes-area" id="notes-area">${p.notes||''}</textarea>
+      </div>
+    </div>
+  `;
+}
+
+function renderDebrief(p){
+  const debriefs=p.debriefs||[];
+  return `
+    <div class="scroll-area" id="debrief-scroll">
+      <div class="card" style="margin-bottom:12px;">
+        <div class="card-label">How did it go?</div>
+        <div class="card-text">Tell me about the date, the call, whatever happened. Just talk naturally.</div>
+      </div>
+      <div id="debrief-out"></div>
+      ${debriefs.length>0?`
+        <div class="section-label" style="margin-top:4px;">Previous debriefs</div>
+        ${debriefs.slice(-3).reverse().map(d=>`
+          <div class="card">
+            <div class="card-label">${d.ts}</div>
+            <div class="card-text">${d.summary}</div>
+          </div>
+        `).join('')}
+      `:''}
+    </div>
+    <div class="input-bar">
+      <div class="input-row">
+        <textarea class="msg-textarea" id="debrief-input" placeholder="She was more relaxed than expected..." style="height:72px;"></textarea>
+        <button class="mic-btn" id="mic-debrief">🎤</button>
+      </div>
+      <button class="btn-submit" id="btn-debrief">Process Debrief</button>
+    </div>
+  `;
+}
+
+// ── EVENTS ────────────────────────────────
+function bindEvents(){
+  document.getElementById('btn-new')?.addEventListener('click', showModal);
+
+  document.querySelectorAll('.strip-item[data-pid]').forEach(el=>{
+    el.addEventListener('click',()=>{ state.activeId=el.dataset.pid; save(); render(); });
+  });
+
+  document.getElementById('btn-remove')?.addEventListener('click',()=>{
+    if(!confirm('Remove this prospect?')) return;
+    state.prospects=state.prospects.filter(p=>p.id!==state.activeId);
+    state.activeId=state.prospects[0]?.id||null;
+    save(); render();
+  });
+
+  document.querySelectorAll('.tab[data-tab]').forEach(el=>{
+    el.addEventListener('click',()=>{
+      const p=getP(); if(!p) return;
+      p._tab=el.dataset.tab; save(); render();
+    });
+  });
+
+  document.querySelectorAll('[data-v]').forEach(el=>{
+    el.addEventListener('click',()=>{
+      const p=getP(); if(!p) return;
+      p.verdict=el.dataset.v; save(); render();
+    });
+  });
+
+  document.querySelectorAll('.stage-item[data-stage]').forEach(el=>{
+    el.addEventListener('click',()=>{
+      const p=getP(); if(!p) return;
+      p.stage=el.dataset.stage; save(); render();
+    });
+  });
+
+  document.getElementById('btn-confirm-stage')?.addEventListener('click',(e)=>{
+    const p=getP(); if(!p) return;
+    p.stage=e.target.dataset.stage; p.stageRec=null; save(); render();
+  });
+
+  document.querySelectorAll('.score-slider[data-sk]').forEach(el=>{
+    el.addEventListener('input',()=>{
+      const p=getP(); if(!p) return;
+      if(!p.scores) p.scores=emptyScores();
+      p.scores[el.dataset.sk]=parseInt(el.value);
+      const v=document.getElementById('sv-'+el.dataset.sk);
+      if(v) v.textContent=el.value;
+      const sn=document.querySelector('.score-number');
+      if(sn) sn.textContent=calcScore(p);
+      save();
+    });
+  });
+
+  document.querySelectorAll('.dq-item[data-dq]').forEach(el=>{
+    el.addEventListener('click',()=>{
+      const p=getP(); if(!p) return;
+      if(!p.flaggedDQs) p.flaggedDQs=[];
+      const dq=el.dataset.dq;
+      p.flaggedDQs=p.flaggedDQs.includes(dq)?p.flaggedDQs.filter(x=>x!==dq):[...p.flaggedDQs,dq];
+      save(); render();
+    });
+  });
+
+  document.querySelectorAll('.bs-item[data-bs]').forEach(el=>{
+    el.addEventListener('click',()=>{
+      const p=getP(); if(!p) return;
+      if(!p.activeBS) p.activeBS=[];
+      const bs=el.dataset.bs;
+      p.activeBS=p.activeBS.includes(bs)?p.activeBS.filter(x=>x!==bs):[...p.activeBS,bs];
+      save(); render();
+    });
+  });
+
+  document.getElementById('notes-area')?.addEventListener('blur',(e)=>{
+    const p=getP(); if(!p) return;
+    p.notes=e.target.value; save();
+  });
+
+  document.getElementById('dismiss-flag')?.addEventListener('click',()=>{
+    const p=getP(); if(!p) return; p.pendingFlag=null; save(); render();
+  });
+  document.getElementById('dismiss-stalling')?.addEventListener('click',()=>{
+    const p=getP(); if(!p) return; p.stallingExit=null; p.stalling=false; save(); render();
+  });
+  document.getElementById('dismiss-verdict')?.addEventListener('click',()=>{
+    const p=getP(); if(!p) return; p.verdictRec=null; save(); render();
+  });
+
+  document.querySelectorAll('.btn-opt[data-ci]').forEach(el=>{
+    el.addEventListener('click',()=>{
+      const p=getP(); if(!p) return;
+      const ci=p.pendingCheckin; if(!ci) return;
+      p.pendingCheckin=null;
+      handleCheckin(p, ci, ci.options[parseInt(el.dataset.ci)]);
+    });
+  });
+
+  document.getElementById('btn-analyse')?.addEventListener('click', doAnalyse);
+
+  // Mode buttons
+  document.querySelectorAll('.mode-btn[data-mode]').forEach(btn=>{
+    btn.addEventListener('click',()=>{
+      document.querySelectorAll('.mode-btn').forEach(b=>b.classList.remove('active'));
+      btn.classList.add('active');
+      const inp=document.getElementById('msg-input');
+      if(inp){
+        inp.placeholder = btn.dataset.mode==='her_message'
+          ? 'Paste her message here...'
+          : 'Tell me what is going on...';
+      }
+    });
+  });
+  document.getElementById('btn-debrief')?.addEventListener('click', doDebrief);
+
+  setupMic('msg-input','mic-msg');
+  setupMic('debrief-input','mic-debrief');
+}
+
+// ── ANALYSE ───────────────────────────────
+async function doAnalyse(){
+  const p=getP(); if(!p) return;
+  const inp=document.getElementById('msg-input');
+  const msg=inp?.value?.trim(); if(!msg) return;
+  const out=document.getElementById('analysis-out');
+  // Get selected mode from buttons
+  const activeBtn=document.querySelector('.mode-btn.active');
+  const selectedMode=activeBtn?.dataset?.mode||'context';
+  out.innerHTML=`<div class="loading"><div class="dots"><span>.</span><span>.</span><span>.</span></div>&nbsp;Reading...</div>`;
+
+  const stageInfo=STAGES.find(s=>s.code===(p.stage||'A1'));
+  // Recent prospect message history for context
+  const hist=(p.history||[]).slice(-10).map(h=>`[${h.dir==='in'?'HER':'YOU'}]: ${h.text}`).join('\n');
+  // Full co-pilot conversation memory — persisted across sessions
+  const copilotMemory = (p.copilotMemory||[]);
+
+  const sys=`You are The Filter — a grounded, honest co-pilot for Kwasi. He is dating with serious intent: marriage and family within 5 years. INTJ. Expresses love through acts of service. Emotionally guarded but deeply loyal. Targets ESFJ-type partners.
+
+His blind spots: fixer tendency (stays too long with volatile or dishonest women), makes exceptions to his own rules, measures new women against ex Tia, cold exit impulse when uncomfortable.
+
+Prospect: ${p.name}, ${p.platform}, Age ${p.age}
+Stage: ${stageInfo?.code} — ${stageInfo?.label}
+Score so far: ${calcScore(p)}/100
+Exchange count: ${(p.history||[]).length}
+Flagged disqualifiers: ${(p.flaggedDQs||[]).join(', ')||'None'}
+Known patterns this prospect: ${p.knownPatterns||'None yet'}
+Recent history:
+${hist||'None yet.'}
+
+Kwasi has selected mode: ${selectedMode === 'her_message' ? 'HER MESSAGE' : 'CONTEXT'}. ${selectedMode === 'her_message' ? 'Give a brief read then suggest 3 replies in his voice. Set mode to her_message.' : 'Do NOT suggest replies. Give honest read. Ask 1-2 follow-up questions. Update scores silently. Flag patterns only after seeing twice. Set mode to context.'}
 
 Kwasi has told you what mode this is: ${selectedMode === 'her_message' ? 'HER MESSAGE — he is pasting something she sent him and wants reply options' : 'CONTEXT — he is talking to you, giving you information about the situation'}.
 
