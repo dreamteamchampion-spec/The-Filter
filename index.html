@@ -718,6 +718,25 @@ html, body {
 
 @keyframes blink { 0%,80%,100%{opacity:0} 40%{opacity:1} }
 @keyframes pulse { 0%,100%{opacity:1} 50%{opacity:0.4} }
+
+.mode-btn {
+  flex: 1;
+  padding: 7px;
+  background: var(--surface3);
+  border: 1px solid var(--border);
+  color: var(--text-dim);
+  font-family: var(--mono);
+  font-size: 10px;
+  letter-spacing: 0.08em;
+  cursor: pointer;
+  text-transform: uppercase;
+}
+.mode-btn.active {
+  background: var(--gold);
+  border-color: var(--gold);
+  color: #000;
+  font-weight: 700;
+}
 </style>
 </head>
 <body>
@@ -933,11 +952,15 @@ function renderCopilot(p){
       `:''}
     </div>
     <div class="input-bar">
+      <div style="display:flex;gap:6px;margin-bottom:8px;">
+        <button class="mode-btn active" id="mode-context" data-mode="context">My Context</button>
+        <button class="mode-btn" id="mode-her" data-mode="her_message">Her Message</button>
+      </div>
       <div class="input-row">
-        <textarea class="msg-textarea" id="msg-input" placeholder="Paste her message — or tell me what's happening..."></textarea>
+        <textarea class="msg-textarea" id="msg-input" placeholder="Tell me what's going on..."></textarea>
         <button class="mic-btn" id="mic-msg">🎤</button>
       </div>
-      <button class="btn-submit" id="btn-analyse">Analyse + Get Replies</button>
+      <button class="btn-submit" id="btn-analyse">Analyse</button>
     </div>
   `;
 }
@@ -1137,6 +1160,20 @@ function bindEvents(){
   });
 
   document.getElementById('btn-analyse')?.addEventListener('click', doAnalyse);
+
+  // Mode buttons
+  document.querySelectorAll('.mode-btn[data-mode]').forEach(btn=>{
+    btn.addEventListener('click',()=>{
+      document.querySelectorAll('.mode-btn').forEach(b=>b.classList.remove('active'));
+      btn.classList.add('active');
+      const inp=document.getElementById('msg-input');
+      if(inp){
+        inp.placeholder = btn.dataset.mode==='her_message'
+          ? 'Paste her message here...'
+          : 'Tell me what's going on...';
+      }
+    });
+  });
   document.getElementById('btn-debrief')?.addEventListener('click', doDebrief);
 
   setupMic('msg-input','mic-msg');
@@ -1149,6 +1186,9 @@ async function doAnalyse(){
   const inp=document.getElementById('msg-input');
   const msg=inp?.value?.trim(); if(!msg) return;
   const out=document.getElementById('analysis-out');
+  // Get selected mode from buttons
+  const activeBtn=document.querySelector('.mode-btn.active');
+  const selectedMode=activeBtn?.dataset?.mode||'context';
   out.innerHTML=`<div class="loading"><div class="dots"><span>.</span><span>.</span><span>.</span></div>&nbsp;Reading...</div>`;
 
   const stageInfo=STAGES.find(s=>s.code===(p.stage||'A1'));
@@ -1170,16 +1210,11 @@ Known patterns this prospect: ${p.knownPatterns||'None yet'}
 Recent history:
 ${hist||'None yet.'}
 
-FIRST — work out what mode Kwasi is in:
+Kwasi has told you what mode this is: ${selectedMode === 'her_message' ? 'HER MESSAGE — he is pasting something she sent him and wants reply options' : 'CONTEXT — he is talking to you, giving you information about the situation'}.
 
-MODE A — CONTEXT: He is talking TO you. Giving you information, describing what happened, asking for your read. He is NOT pasting her message. Examples: "I met her", "we went on a date", "she said x", "I think she likes me", "not sure what to do", "should I move to the next stage".
-→ Do NOT suggest replies. Give your honest read. Ask 1-2 follow-up questions to build your picture. Update scores silently. Only flag patterns you have seen MORE THAN ONCE — first time file it silently, second time flag it.
-
-MODE B — HER MESSAGE: He is pasting something she actually sent him and wants reply options.
-→ Give a brief read. Suggest 3 replies in his voice. Be specific about the stage-appropriate strategy.
-
-MODE C — UNCLEAR: You genuinely cannot tell.
-→ Ask one question: "Is this her message or are you giving me context?"
+${selectedMode === 'her_message' ? 
+'→ Give a brief situational read. Suggest 3 replies in his voice. Be specific about stage-appropriate strategy. Set mode to her_message.' : 
+'→ Do NOT suggest replies. Give your honest read. Ask 1-2 follow-up questions to build your picture. Update scores silently. Only flag patterns seen MORE THAN ONCE. Set mode to context.'}
 
 REPLY VOICE RULES — critical:
 - Dry and plain. Short sentences. Never clever for the sake of it.
