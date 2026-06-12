@@ -181,22 +181,29 @@ function setupMic(inputId,btnId){
     if(recog&&recogTarget===inputId){recog.stop();return;}
     if(recog)recog.stop();
     try{await navigator.mediaDevices.getUserMedia({audio:true});}
-    catch(e){btn.textContent='No mic';setTimeout(function(){btn.textContent='mic';},2000);return;}
-    recog=new SR();recog.continuous=true;recog.interimResults=true;recog.lang='en-GB';
+    catch(e){inp.value='Mic error: '+e.message;return;}
+    recog=new SR();
+    recog.continuous=false;
+    recog.interimResults=false;
+    recog.lang='en-GB';
     recogTarget=inputId;
     btn.classList.add('listening');
-    let base=inp.value;
+    var base=inp.value;
+    recog.onstart=function(){inp.value='Listening...';};
     recog.onresult=function(e){
-      let fin='',int='';
-      for(let i=e.resultIndex;i<e.results.length;i++){
-        if(e.results[i].isFinal)fin+=e.results[i][0].transcript;
-        else int+=e.results[i][0].transcript;
+      var transcript='';
+      for(var i=0;i<e.results.length;i++){
+        transcript+=e.results[i][0].transcript;
       }
-      if(fin)base+=fin+' ';
-      inp.value=base+int;
+      inp.value=base+(base?' ':'')+transcript;
     };
-    recog.onerror=function(){btn.classList.remove('listening');recog=null;recogTarget=null;};
-    recog.onend=function(){btn.classList.remove('listening');recog=null;recogTarget=null;};
+    recog.onerror=function(e){
+      inp.value='Mic error: '+e.error;
+      btn.classList.remove('listening');recog=null;recogTarget=null;
+    };
+    recog.onend=function(){
+      btn.classList.remove('listening');recog=null;recogTarget=null;
+    };
     recog.start();
   };
 }
