@@ -1,0 +1,372 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0" />
+  <title>The Filter</title>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/react/18.2.0/umd/react.production.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/react-dom/18.2.0/umd/react-dom.production.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/babel-standalone/7.23.2/babel.min.js"></script>
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body { background: #0a0a0c; color: #e8e6e1; font-family: 'Inter', system-ui, sans-serif; overflow: hidden; height: 100vh; }
+    textarea, input, button { font-family: inherit; }
+    ::-webkit-scrollbar { width: 3px; }
+    ::-webkit-scrollbar-thumb { background: #222; border-radius: 2px; }
+    input::placeholder, textarea::placeholder { color: #444; }
+  </style>
+</head>
+<body>
+<div id="root"></div>
+<script type="text/babel">
+const { useState, useRef, useEffect } = React;
+
+const STAGES = [
+  { id: "A1", color: "#C0392B", label: "Approach" },
+  { id: "A2", color: "#E67E22", label: "Demonstrate Value" },
+  { id: "A3", color: "#D4AC0D", label: "Qualify Her" },
+  { id: "C1", color: "#27AE60", label: "Comfort — Early" },
+  { id: "C2", color: "#2980B9", label: "Comfort — Deepening" },
+  { id: "C3", color: "#8E44AD", label: "Comfort — Your World" },
+];
+
+const sc = id => STAGES.find(s => s.id === id)?.color || "#444";
+const sl = id => STAGES.find(s => s.id === id)?.label || id;
+
+const SYSTEM = `You are The Filter — Kwasi's personal dating co-pilot trained on the Mystery Method and The Game by Neil Strauss. You operate as a sharp, honest friend who knows the framework inside out.
+
+HOW YOU WORK:
+Kwasi talks to you conversationally about a specific woman. He might drop in mid-situation — "she just messaged me" — or give context from scratch. You already know her name and history from this conversation. Never ask him to re-explain what you already know.
+
+YOUR JOB:
+1. Read the situation honestly
+2. Identify or confirm the MM stage — challenge him if he's wrong
+3. NEVER advance a stage without evidence. Two messages does not mean push for a date. Ask questions to verify stage before committing
+4. Tell him exactly what to do next — specific, MM-grounded
+5. Flag blind spots when relevant
+6. Give 3 suggested replies in his voice when he needs what to say
+
+MM FRAMEWORK:
+- A1 (Text): Penetrate shield. No compliments on looks. Opinion openers, false time constraints, light negs. Need 2+ IOIs before moving forward.
+- A2 (Text/Phone): DHV — pre-selection, non-neediness, storytelling, frame control, dancing string. Track hook point and buying temperature. Never chase.
+- A3 (Text/Phone): Flip the frame. Make her prove she is worth his time. Reward specifically what she reveals.
+- C1 (Phone strongly recommended): She likes him, now needs to trust him. Real depth, elicit values, get number, bridge to Day 2. A phone call does more in 20 mins than 2 weeks of texting.
+- C2 (Phone + in person): Sustained connection. Don't over-text. Day 2 territory.
+- C3 (In person): She is near his world. False time constraint. Watch for ASD. Text work is done.
+
+MEDIUM — always specify: text / phone / in person
+STAGE GATES — never skip without evidence:
+- A1 to A2: need 2+ IOIs
+- A2 to A3: hook point confirmed
+- A3 to C1: genuine qualification exchange happened
+- C1 to C2: number secured, Day 2 bridged
+- C2 to C3: sustained comfort, physical proximity established
+
+KWASI'S BLIND SPOTS:
+1. Fixer tendency — stays too long with volatile or dishonest women
+2. Exception-making — bends disqualifiers: children (most common), smoking, volatility, dishonesty
+3. Early verdict — dismisses before evidence supports it
+4. Cold exit — ghosts when frustrated
+5. Tia benchmark — measures everyone against a past relationship
+
+KWASI'S VOICE FOR REPLIES: Dry deadpan. Warm only when earned. Direct. Doesn't chase. Never "haha"/"lol". Never double-texts. Makes her work for clarity.
+
+OUTPUT FORMAT:
+Talk naturally like a mate. When you have enough to give a proper read, include one analysis card using this exact format on its own line:
+CARD_START{"stage":"A1","reasoning":"precise sentence","hooked":false,"bt":"low","medium":"text","iois":["x"],"iods":["x"],"blind_spot":"x or null","move":"what to do now","replies":[{"label":"Dry / Hold frame","text":"..."},{"label":"Warm / Forward","text":"..."},{"label":"Qualify / Flip","text":"..."}]}CARD_END
+
+Only output a card when you have real signal to work with. Do not output a card for every single message.`;
+
+function parseMsg(content) {
+  const m = content.match(/CARD_START([\s\S]*?)CARD_END/);
+  if (!m) return { text: content, card: null };
+  const text = content.replace(/CARD_START[\s\S]*?CARD_END/, "").trim();
+  try { return { text, card: JSON.parse(m[1].trim()) }; }
+  catch { return { text: content, card: null }; }
+}
+
+function Card({ card, name }) {
+  const [copied, setCopied] = useState(null);
+  const color = sc(card.stage);
+  const btColor = { high: "#5a8ab8", medium: "#b8a85a", fading: "#b85a5a", low: "#555" }[card.bt] || "#555";
+  const medColor = { text: "#2980B9", phone: "#27AE60", "in person": "#8E44AD" }[(card.medium||"").toLowerCase()] || "#555";
+
+  function copy(t, i) {
+    navigator.clipboard.writeText(t);
+    setCopied(i);
+    setTimeout(() => setCopied(null), 2000);
+  }
+
+  return (
+    <div style={{ background: "#0f0f12", border: "1px solid " + color + "33", borderRadius: "10px", overflow: "hidden", marginTop: "8px" }}>
+      <div style={{ padding: "10px 14px", background: color + "15", borderBottom: "1px solid " + color + "22", display: "flex", alignItems: "center", gap: "8px", flexWrap: "wrap" }}>
+        <div style={{ background: color, borderRadius: "4px", padding: "3px 9px", fontSize: "11px", fontWeight: "700", color: "#fff" }}>{card.stage}</div>
+        <div style={{ fontSize: "12px", fontWeight: "600" }}>{sl(card.stage)}</div>
+        <div style={{ marginLeft: "auto", display: "flex", gap: "5px", flexWrap: "wrap" }}>
+          {card.medium && <div style={{ padding: "2px 7px", borderRadius: "4px", fontSize: "10px", fontWeight: "600", background: medColor + "22", color: medColor, border: "1px solid " + medColor + "44" }}>{card.medium === "phone" ? "📞" : card.medium === "in person" ? "🤝" : "💬"} {card.medium}</div>}
+          <div style={{ padding: "2px 7px", borderRadius: "4px", fontSize: "10px", fontWeight: "600", background: card.hooked ? "#0d2a0d" : "#1a1a1a", color: card.hooked ? "#5ab85a" : "#555", border: "1px solid " + (card.hooked ? "#2a5a2a" : "#222") }}>{card.hooked ? "✓ Hooked" : "Not hooked"}</div>
+          <div style={{ padding: "2px 7px", borderRadius: "4px", fontSize: "10px", fontWeight: "600", color: btColor, background: "#141416", border: "1px solid #222" }}>BT: {card.bt}</div>
+        </div>
+      </div>
+      <div style={{ padding: "12px 14px", display: "flex", flexDirection: "column", gap: "10px" }}>
+        <div style={{ fontSize: "12px", color: "#777", lineHeight: "1.5", fontStyle: "italic" }}>{card.reasoning}</div>
+        {card.move && (
+          <div style={{ background: "#141416", borderRadius: "6px", padding: "10px 12px", border: "1px solid #1e1e22" }}>
+            <div style={{ fontSize: "9px", color: "#555", letterSpacing: "0.1em", textTransform: "uppercase", marginBottom: "4px" }}>Your Move</div>
+            <div style={{ fontSize: "12px", color: "#e8e6e1", lineHeight: "1.6" }}>{card.move}</div>
+          </div>
+        )}
+        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "8px" }}>
+          <div style={{ background: "#0d1a0d", border: "1px solid #1a3a1a", borderRadius: "6px", padding: "9px" }}>
+            <div style={{ fontSize: "9px", color: "#4a8a4a", letterSpacing: "0.1em", textTransform: "uppercase", marginBottom: "5px" }}>IOIs from {name}</div>
+            {card.iois && card.iois.length ? card.iois.map((x,i) => <div key={i} style={{ fontSize: "11px", color: "#7ab87a", lineHeight: "1.9" }}>✓ {x}</div>) : <div style={{ fontSize: "11px", color: "#333" }}>None yet</div>}
+          </div>
+          <div style={{ background: "#1a0d0d", border: "1px solid #3a1a1a", borderRadius: "6px", padding: "9px" }}>
+            <div style={{ fontSize: "9px", color: "#8a4a4a", letterSpacing: "0.1em", textTransform: "uppercase", marginBottom: "5px" }}>Flags</div>
+            {card.iods && card.iods.length ? card.iods.map((x,i) => <div key={i} style={{ fontSize: "11px", color: "#b87a7a", lineHeight: "1.9" }}>⚠ {x}</div>) : <div style={{ fontSize: "11px", color: "#333" }}>None</div>}
+          </div>
+        </div>
+        {card.blind_spot && card.blind_spot !== "null" && (
+          <div style={{ background: "#14100a", border: "1px solid #3a2a0a", borderRadius: "6px", padding: "9px" }}>
+            <div style={{ fontSize: "9px", color: "#8a6a2a", letterSpacing: "0.1em", textTransform: "uppercase", marginBottom: "4px" }}>Blind Spot</div>
+            <div style={{ fontSize: "11px", color: "#c8a860", lineHeight: "1.5" }}>{card.blind_spot}</div>
+          </div>
+        )}
+        {card.replies && card.replies.length > 0 && (
+          <div>
+            <div style={{ fontSize: "9px", color: "#555", letterSpacing: "0.1em", textTransform: "uppercase", marginBottom: "7px" }}>Replies to {name}</div>
+            {card.replies.map((r,i) => (
+              <div key={i} style={{ background: "#141416", border: "1px solid #1e1e22", borderRadius: "6px", padding: "10px 12px", marginBottom: "6px" }}>
+                <div style={{ fontSize: "9px", color: "#555", letterSpacing: "0.1em", textTransform: "uppercase", marginBottom: "5px" }}>{r.label}</div>
+                <div style={{ fontSize: "13px", color: "#e8e6e1", lineHeight: "1.6" }}>{r.text}</div>
+                <button onClick={() => copy(r.text, i)} style={{ marginTop: "7px", background: "none", border: "1px solid " + (copied === i ? "#27AE60" : "#2a2a2e"), borderRadius: "4px", padding: "3px 9px", color: copied === i ? "#27AE60" : "#444", fontSize: "10px", cursor: "pointer" }}>
+                  {copied === i ? "Copied ✓" : "Copy"}
+                </button>
+              </div>
+            ))}
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
+
+function renderMD(text) {
+  if (!text) return null;
+  const lines = text.split("\n");
+  return lines.map((line, li) => {
+    const parts = line.split(/(\*\*[^*]+\*\*|\*[^*]+\*)/g);
+    const rendered = parts.map((p, i) => {
+      if (p.startsWith("**") && p.endsWith("**")) return <strong key={i} style={{ color: "#e8e6e1", fontWeight: "600" }}>{p.slice(2,-2)}</strong>;
+      if (p.startsWith("*") && p.endsWith("*")) return <em key={i} style={{ color: "#aaa" }}>{p.slice(1,-1)}</em>;
+      return <span key={i}>{p}</span>;
+    });
+    return <div key={li} style={{ minHeight: line.trim() === "" ? "10px" : "auto" }}>{rendered}</div>;
+  });
+}
+
+function Bubble({ msg, name }) {
+  const { text, card } = parseMsg(msg.content);
+  if (msg.role === "user") {
+    return (
+      <div style={{ display: "flex", justifyContent: "flex-end", marginBottom: "12px" }}>
+        <div style={{ background: "#1e1e24", borderRadius: "14px 14px 3px 14px", padding: "10px 14px", maxWidth: "80%", fontSize: "13px", color: "#e8e6e1", lineHeight: "1.6" }}>{msg.content}</div>
+      </div>
+    );
+  }
+  return (
+    <div style={{ marginBottom: "16px" }}>
+      <div style={{ fontSize: "9px", color: "#333", letterSpacing: "0.08em", textTransform: "uppercase", marginBottom: "6px" }}>The Filter</div>
+      {text && <div style={{ fontSize: "13px", color: "#bbb", lineHeight: "1.9", maxWidth: "94%" }}>{renderMD(text)}</div>}
+      {card && <Card card={card} name={name} />}
+    </div>
+  );
+}
+
+function Chat({ prospect, onBack, onStageUpdate }) {
+  const [msgs, setMsgs] = useState(() => { try { return JSON.parse(localStorage.getItem("chat-" + prospect.id) || "[]"); } catch { return []; } });
+  const [input, setInput] = useState("");
+  const [loading, setLoading] = useState(false);
+  const [localStage, setLocalStage] = useState(() => {
+    try {
+      const saved = JSON.parse(localStorage.getItem("chat-" + prospect.id) || "[]");
+      const lastAssistant = [...saved].reverse().find(m => m.role === "assistant");
+      if (lastAssistant) {
+        const m = lastAssistant.content.match(/CARD_START([\s\S]*?)CARD_END/);
+        if (m) { const c = JSON.parse(m[1].trim()); if (c.stage) return c.stage; }
+      }
+    } catch {}
+    return prospect.stage || "A1";
+  });
+  const bottomRef = useRef(null);
+  const taRef = useRef(null);
+
+  useEffect(() => { bottomRef.current?.scrollIntoView({ behavior: "smooth" }); }, [msgs, loading]);
+  useEffect(() => {
+    localStorage.setItem("chat-" + prospect.id, JSON.stringify(msgs));
+  }, [msgs]);
+
+  async function send(override) {
+    const msg = (override !== undefined ? override : input).trim();
+    if (!msg || loading) return;
+    setInput("");
+    if (taRef.current) taRef.current.style.height = "auto";
+    const newMsgs = [...msgs, { role: "user", content: msg }];
+    setMsgs(newMsgs);
+    setLoading(true);
+
+    const ctx = `PROSPECT: ${prospect.name}, age ${prospect.age||"?"}, ${prospect.platform||"unknown"}, current stage ${localStage}\nOverview: ${prospect.overview||"none"}\nNotes: ${prospect.notes||"none"}\n---\n\n`;
+    const apiMsgs = newMsgs.map((m, i) => i === 0 ? { role: "user", content: ctx + m.content } : m);
+
+    try {
+      const res = await fetch("/api/chat", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ system: SYSTEM, messages: apiMsgs }) });
+      const d = await res.json();
+      const text = d.content?.map(b => b.text || "").join("") || d.result || "";
+      setMsgs(prev => [...prev, { role: "assistant", content: text }]);
+      // Fire stage update immediately when card detected
+      const { card } = parseMsg(text);
+      if (card && card.stage) { setLocalStage(card.stage); onStageUpdate(prospect.id, card.stage); }
+    } catch {
+      setMsgs(prev => [...prev, { role: "assistant", content: "Something went wrong. Try again." }]);
+    }
+    setLoading(false);
+  }
+
+  const starters = [
+    prospect.name + " just messaged me — what should I say?",
+    "This is where I'm at with " + prospect.name + " — give me a read",
+    "I think I'm at " + localStage + " with " + prospect.name + " — does that sound right?",
+    "I'm stuck with " + prospect.name + " — she's gone a bit cold",
+  ];
+
+  return (
+    <div style={{ display: "flex", flexDirection: "column", height: "100vh" }}>
+      <div style={{ padding: "12px 16px", borderBottom: "1px solid #141416", display: "flex", alignItems: "center", gap: "11px", flexShrink: 0, background: "#0a0a0c" }}>
+        <button onClick={onBack} style={{ background: "none", border: "none", color: "#555", cursor: "pointer", fontSize: "20px", lineHeight: 1 }}>←</button>
+        <div style={{ width: "36px", height: "36px", borderRadius: "50%", background: sc(localStage) + "22", border: "2px solid " + sc(localStage) + "55", display: "flex", alignItems: "center", justifyContent: "center", fontSize: "15px", fontWeight: "700", color: sc(localStage), flexShrink: 0 }}>{prospect.name[0].toUpperCase()}</div>
+        <div style={{ flex: 1 }}>
+          <div style={{ fontWeight: "700", fontSize: "14px" }}>{prospect.name}</div>
+          <div style={{ fontSize: "11px", color: "#444" }}>{[prospect.age, prospect.platform].filter(Boolean).join(" · ")}</div>
+        </div>
+        <div style={{ background: sc(localStage), borderRadius: "4px", padding: "3px 8px", fontSize: "10px", fontWeight: "700", color: "#fff" }}>{localStage}</div>
+        {msgs.length > 0 && <button onClick={() => { if(confirm("Clear history for " + prospect.name + "?")) { setMsgs([]); localStorage.removeItem("chat-" + prospect.id); }}} style={{ background: "none", border: "1px solid #1e1e22", borderRadius: "4px", padding: "3px 8px", color: "#444", fontSize: "10px", cursor: "pointer" }}>Clear</button>}
+      </div>
+
+      <div style={{ flex: 1, overflowY: "auto", padding: "16px 16px 8px" }}>
+        {msgs.length === 0 ? (
+          <div style={{ paddingTop: "16px" }}>
+            <div style={{ fontSize: "13px", color: "#444", lineHeight: "1.7", marginBottom: "18px" }}>Tell me what's going on with {prospect.name}. Drop in wherever you are.</div>
+            {starters.map((s, i) => <button key={i} onClick={() => send(s)} style={{ background: "#141416", border: "1px solid #1e1e22", borderRadius: "8px", padding: "10px 13px", color: "#666", fontSize: "12px", cursor: "pointer", textAlign: "left", lineHeight: "1.5", display: "block", width: "100%", marginBottom: "7px" }}>"{s}"</button>)}
+          </div>
+        ) : msgs.map((m, i) => <Bubble key={i} msg={m} name={prospect.name} />)}
+        {loading && <div style={{ marginBottom: "16px" }}><div style={{ fontSize: "9px", color: "#333", letterSpacing: "0.08em", textTransform: "uppercase", marginBottom: "6px" }}>The Filter</div><div style={{ fontSize: "13px", color: "#444", fontStyle: "italic" }}>Reading the situation...</div></div>}
+        <div ref={bottomRef} />
+      </div>
+
+      <div style={{ padding: "10px 12px", borderTop: "1px solid #141416", flexShrink: 0, background: "#0a0a0c" }}>
+        <div style={{ display: "flex", gap: "8px", alignItems: "flex-end" }}>
+          <textarea ref={taRef} value={input} onChange={e => { setInput(e.target.value); e.target.style.height = "auto"; e.target.style.height = Math.min(e.target.scrollHeight, 120) + "px"; }} onKeyDown={e => { if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); send(); }}} placeholder={"What's happening with " + prospect.name + "?"} rows={1} style={{ flex: 1, background: "#141416", border: "1px solid #222", borderRadius: "10px", padding: "10px 13px", color: "#e8e6e1", fontSize: "13px", outline: "none", resize: "none", lineHeight: "1.5", maxHeight: "120px" }} />
+          <button onClick={() => send()} disabled={loading || !input.trim()} style={{ background: loading ? "#1a1a1d" : "#C0392B", border: "none", borderRadius: "10px", width: "40px", height: "40px", color: loading ? "#555" : "#fff", cursor: loading ? "not-allowed" : "pointer", fontSize: "18px", flexShrink: 0 }}>↑</button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function NewSheet({ onSave, onClose }) {
+  const [f, setF] = useState({ name: "", age: "", platform: "", stage: "A1", overview: "", notes: "" });
+  const upd = (k, v) => setF(p => ({ ...p, [k]: v }));
+  const I = { background: "#141416", border: "1px solid #222", borderRadius: "8px", padding: "10px 12px", color: "#e8e6e1", fontSize: "13px", outline: "none", width: "100%" };
+  const L = { fontSize: "10px", color: "#555", letterSpacing: "0.08em", textTransform: "uppercase", display: "block", marginBottom: "5px" };
+  return (
+    <div style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,.8)", zIndex: 100, display: "flex", alignItems: "flex-end" }}>
+      <div style={{ background: "#111113", borderRadius: "16px 16px 0 0", padding: "20px 16px 40px", width: "100%", maxHeight: "88vh", overflowY: "auto" }}>
+        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "20px" }}>
+          <div style={{ fontWeight: "700", fontSize: "16px" }}>New Prospect</div>
+          <button onClick={onClose} style={{ background: "none", border: "none", color: "#555", fontSize: "22px", cursor: "pointer" }}>✕</button>
+        </div>
+        <div style={{ display: "flex", flexDirection: "column", gap: "14px" }}>
+          <div><span style={L}>Name *</span><input placeholder="Her name" value={f.name} onChange={e => upd("name", e.target.value)} style={I} /></div>
+          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "10px" }}>
+            <div><span style={L}>Age</span><input placeholder="Age" value={f.age} onChange={e => upd("age", e.target.value)} style={I} /></div>
+            <div><span style={L}>Platform</span><input placeholder="Happn, Hinge…" value={f.platform} onChange={e => upd("platform", e.target.value)} style={I} /></div>
+          </div>
+          <div>
+            <span style={L}>Starting Stage</span>
+            <div style={{ display: "flex", gap: "6px", flexWrap: "wrap" }}>
+              {STAGES.map(s => <button key={s.id} onClick={() => upd("stage", s.id)} style={{ padding: "5px 10px", borderRadius: "5px", fontSize: "11px", fontWeight: "600", cursor: "pointer", border: "1px solid " + (f.stage === s.id ? s.color : "#222"), background: f.stage === s.id ? s.color : "#141416", color: f.stage === s.id ? "#fff" : "#555" }}>{s.id}</button>)}
+            </div>
+          </div>
+          <div><span style={L}>Overview</span><textarea placeholder="How you met, her vibe, first impressions…" value={f.overview} onChange={e => upd("overview", e.target.value)} rows={2} style={{ ...I, resize: "vertical", lineHeight: "1.5" }} /></div>
+          <div><span style={L}>Notes</span><textarea placeholder="Red flags, what's happened, things to remember…" value={f.notes} onChange={e => upd("notes", e.target.value)} rows={2} style={{ ...I, resize: "vertical", lineHeight: "1.5" }} /></div>
+          <button onClick={() => f.name.trim() && onSave({ ...f, id: Date.now().toString() })} disabled={!f.name.trim()} style={{ background: f.name.trim() ? "#C0392B" : "#1a1a1d", border: "none", borderRadius: "8px", padding: "14px", color: f.name.trim() ? "#fff" : "#444", fontSize: "14px", fontWeight: "600", cursor: f.name.trim() ? "pointer" : "not-allowed" }}>Add Prospect</button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function App() {
+  const [prospects, setProspects] = useState(() => { try { return JSON.parse(localStorage.getItem("tf-prospects") || "[]"); } catch { return []; } });
+  const [selected, setSelected] = useState(null);
+  const [showNew, setShowNew] = useState(false);
+
+  useEffect(() => { localStorage.setItem("tf-prospects", JSON.stringify(prospects)); }, [prospects]);
+
+  function addProspect(p) { setProspects(ps => [...ps, p]); setSelected(p.id); setShowNew(false); }
+  function updateStage(id, stage) { setProspects(ps => ps.map(p => p.id === id ? { ...p, stage } : p)); }
+  function removeProspect(id) { if(confirm("Remove this prospect?")) { setProspects(ps => ps.filter(p => p.id !== id)); localStorage.removeItem("chat-" + id); } }
+
+  const cp = prospects.find(p => p.id === selected);
+
+  if (cp) return <Chat prospect={cp} onBack={() => setSelected(null)} onStageUpdate={updateStage} />;
+
+  return (
+    <div style={{ minHeight: "100vh" }}>
+      <div style={{ padding: "16px", borderBottom: "1px solid #141416", display: "flex", alignItems: "center", justifyContent: "space-between", position: "sticky", top: 0, background: "#0a0a0c", zIndex: 10 }}>
+        <div>
+          <div style={{ fontSize: "10px", color: "#444", letterSpacing: "0.1em", textTransform: "uppercase" }}>⚡ The Filter</div>
+          <div style={{ fontSize: "18px", fontWeight: "700", marginTop: "2px" }}>Prospects</div>
+        </div>
+        <button onClick={() => setShowNew(true)} style={{ background: "#C0392B", border: "none", borderRadius: "8px", padding: "8px 16px", color: "#fff", fontSize: "13px", fontWeight: "600", cursor: "pointer" }}>+ Add</button>
+      </div>
+
+      <div style={{ padding: "16px", maxWidth: "500px", margin: "0 auto" }}>
+        {prospects.length === 0 ? (
+          <div style={{ textAlign: "center", paddingTop: "80px", color: "#333" }}>
+            <div style={{ fontSize: "48px", marginBottom: "16px" }}>👤</div>
+            <div style={{ fontSize: "15px", color: "#555", marginBottom: "6px" }}>No prospects yet</div>
+            <div style={{ fontSize: "12px", color: "#333" }}>Add one to start</div>
+          </div>
+        ) : (
+          <div style={{ display: "flex", flexDirection: "column", gap: "8px" }}>
+            {prospects.map(p => {
+              const color = sc(p.stage);
+              const chatLen = (() => { try { return JSON.parse(localStorage.getItem("chat-" + p.id) || "[]").length; } catch { return 0; } })();
+              return (
+                <div key={p.id} style={{ background: "#111113", border: "1px solid #1a1a1d", borderRadius: "12px", padding: "14px 16px", display: "flex", alignItems: "center", gap: "12px" }}>
+                  <button onClick={() => setSelected(p.id)} style={{ display: "flex", alignItems: "center", gap: "12px", flex: 1, background: "none", border: "none", cursor: "pointer", textAlign: "left" }}>
+                    <div style={{ width: "44px", height: "44px", borderRadius: "50%", background: color + "22", border: "2px solid " + color + "55", display: "flex", alignItems: "center", justifyContent: "center", fontSize: "18px", fontWeight: "700", color, flexShrink: 0 }}>{p.name[0].toUpperCase()}</div>
+                    <div style={{ flex: 1 }}>
+                      <div style={{ fontWeight: "600", fontSize: "15px", color: "#e8e6e1" }}>{p.name}</div>
+                      <div style={{ fontSize: "11px", color: "#444", marginTop: "2px" }}>{[p.age, p.platform].filter(Boolean).join(" · ")}{chatLen > 0 ? " · " + Math.floor(chatLen/2) + " exchanges" : ""}</div>
+                    </div>
+                    <div style={{ background: color, borderRadius: "4px", padding: "3px 8px", fontSize: "10px", fontWeight: "700", color: "#fff" }}>{p.stage||"A1"}</div>
+                  </button>
+                  <button onClick={() => removeProspect(p.id)} style={{ background: "none", border: "none", color: "#333", cursor: "pointer", fontSize: "16px", padding: "4px" }}>✕</button>
+                </div>
+              );
+            })}
+          </div>
+        )}
+      </div>
+
+      {showNew && <NewSheet onSave={addProspect} onClose={() => setShowNew(false)} />}
+    </div>
+  );
+}
+
+ReactDOM.render(React.createElement(App), document.getElementById('root'));
+</script>
+</body>
+</html>
