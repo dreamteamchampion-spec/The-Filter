@@ -2,10 +2,9 @@ export default async function handler(req, res) {
   if (req.method !== 'POST') {
     return res.status(405).json({ error: 'Method not allowed' });
   }
-
   try {
-    const { system, messages } = req.body;
-    
+    const { system, messages, model } = req.body;
+
     const response = await fetch('https://api.anthropic.com/v1/messages', {
       method: 'POST',
       headers: {
@@ -14,16 +13,16 @@ export default async function handler(req, res) {
         'anthropic-version': '2023-06-01',
       },
       body: JSON.stringify({
-        model: 'claude-haiku-4-5-20251001',
+        model: model || 'claude-sonnet-4-6',
         max_tokens: 2000,
         system,
         messages,
       }),
     });
-
     const data = await response.json();
     return res.status(200).json(data);
   } catch (err) {
     return res.status(500).json({ error: err.message });
   }
+}
 }
