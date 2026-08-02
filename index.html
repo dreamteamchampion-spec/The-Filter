@@ -307,7 +307,7 @@ CARD_START{"stage":"C1","reasoning":"one precise sentence, qualitative only, nev
 
 her_markers/his_markers: only include a marker if something THIS turn genuinely touched it — a real confirming or contradicting instance, or a reported item. "signal" is ONLY "confirm" or "contradict", nothing else, and must use the EXACT canonical name from the two lists above, nothing appended. Never re-list a marker with no new instance just to keep it visible — the app already persists everything you've logged in past turns. escalation_eligible is your best read of whether all 22 look broadly locked in based on everything you've seen across the conversation, but the app will independently verify this against the real accumulated count and override you if you're wrong — so don't strain to get the exact number right, just don't claim it's open unless you genuinely believe the evidence is there.
 
-If you are still gathering information and cannot assess the stage yet, do not output a card — but end your reply with the exact token [NO_CARD_OK] so the app knows the missing card is intentional, not dropped. Same for DISTRESS OVERRIDE: no card, but still end with [NO_CARD_OK]. Any other time — any stage call, any reply suggestion, any drafting instruction under DRAFTING TRIGGER — the card is mandatory and [NO_CARD_OK] must never appear.`;
+The card is mandatory in exactly two cases, per RULE 1 and RULE 2 above: naming or calling a stage, or giving Kwasi anything he could send her (including the DRAFTING TRIGGER case). Every other reply — his own question or opinion-seeking that isn't about what to send her (e.g. "where should I take her", "what do you think this means", "how am I doing here"), still gathering information, or DISTRESS OVERRIDE — do NOT output a card, and instead end the reply with the exact token [NO_CARD_OK], every single time with no exceptions, so the app can tell an intentional skip from a dropped card. Default to [NO_CARD_OK] whenever you're unsure which case you're in — the card is the exception, not the default.`;
 
 // Separate, lean system prompt used ONLY for the retrospective backfill read
 // — for prospects whose real history predates the hardcore blueprint and so
@@ -995,11 +995,11 @@ function Chat({ prospect, onBack, onStageUpdate, onCaseFileUpdate, onSummaryUpda
       // Structural backstop for RULE 1-3 / DRAFTING TRIGGER (card mandatory):
       // don't just trust the prompt to hold every turn — the same class of bug
       // (a prompt-only instruction quietly dropped) has bitten this app before.
-      // The only two legitimate no-card cases are tagged with [NO_CARD_OK] by
-      // the prompt above. If neither a card nor that tag shows up, the card
-      // was dropped, not intentionally withheld — silently retry once with an
-      // explicit correction before this ever reaches Kwasi. He shouldn't have
-      // to type "where are the cards" to get a card the rules already require.
+      // Card is the exception, not the default — every other reply (opinion
+      // questions, discussion, still gathering info, distress) is tagged
+      // [NO_CARD_OK] by the prompt above. If neither a card nor that tag shows
+      // up, the card was dropped, not intentionally withheld — silently retry
+      // once with an explicit correction before this ever reaches Kwasi.
       const hasCard = /CARD_START[\s\S]*?CARD_END/.test(text);
       const markedIntentional = /\[NO_CARD_OK\]/i.test(text);
       if (!hasCard && !markedIntentional) {
